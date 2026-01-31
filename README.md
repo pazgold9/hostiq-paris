@@ -72,17 +72,7 @@ The notebooks in `notebooks/` contain the ML and NLP pipelines used to generate 
 | `Smart Pricing Engine.ipynb` | Training for price prediction |
 | `Guest Feedback Intelligence System (graphs).ipynb` | Training NLP sentiment analysis and visualization |
 | `poi_data_collection.ipynb` | Points of Interest data collection for location features |
+| `collect_Listing_Quality_Knowledge_Base.py` | scraping browser to collect Airbnb help articles for the suggestion system. |
 
----
+> **Note:** The scripts contain **only the scraping code**, not the scraped data. The script demonstrates how to use Playwright with Bright Data's proxy to access Airbnb's help center articles.
 
-## Part 4: Knowledge Base Scraping (Bright Data)
-
-The **collect_Listing_Quality_Knowledge_Base.py** script uses [Bright Data](https://brightdata.com/) scraping browser to collect Airbnb help articles for the suggestion system.
-
-> **Note:** This repository contains **only the scraping code**, not the scraped data. The script demonstrates how to use Playwright with Bright Data's proxy to access Airbnb's help center articles.
-
-### What It Collects
-
-- Airbnb host tips and best practices
-- Help articles on cleanliness, communication, pricing, etc.
-- Content used to generate actionable suggestions in the Review Intelligence Report
