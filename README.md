@@ -1,6 +1,6 @@
-# HostIQ Paris - Airbnb Host Intelligence Platform
+# HostIQ - Airbnb Host Intelligence Platform
 
-A data-driven dashboard for Airbnb hosts in Paris, providing pricing optimization and guest feedback analysis.
+A data driven dashboard for Airbnb hosts in Paris, providing pricing optimization and guest feedback analysis.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)
