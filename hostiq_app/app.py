@@ -163,16 +163,13 @@ PRICE_DELTA_75TH = 27.18
 # ============== DATA LOADING (CACHED) ==============
 @st.cache_data(ttl=3600)
 def load_data():
-    # 1. Load property-level data
+    # 1. Load property-level data (includes predictions from Smart Pricing Engine)
     properties_df = pd.read_csv('sample_data.csv')
     
-    # 2. Load host-level intelligence report
-    host_report = pd.read_csv('host_review_intelligence_report.csv')
-    
-    # 3. Load property review intelligence (source of truth for reviews)
+    # 2. Load property review intelligence (source of truth for reviews)
     property_review = pd.read_csv('property_review_intelligence_report.csv')
     
-    # Normalize sentiment scores from [-1, 1] to [0, 1]
+    # Normalize sentiment scores from [-1, 1] to [0, 1] if needed
     def normalize_sentiment(x):
         if pd.isna(x):
             return x
@@ -204,7 +201,6 @@ def load_data():
     
     for src_col, dst_col in review_mapping.items():
         if src_col in property_review.columns:
-            # Create a mapping from property_id to value
             mapping = property_review.set_index('Property_ID')[src_col].to_dict()
             properties_df[dst_col] = properties_df['property_id_str'].map(mapping).combine_first(
                 properties_df[dst_col] if dst_col in properties_df.columns else pd.Series()
@@ -215,9 +211,42 @@ def load_data():
     # Calculate price delta at property level
     properties_df['price_delta'] = properties_df['prediction'] - properties_df['price']
     
-    # Merge property data with host intelligence
+    # 3. Calculate host-level aggregations dynamically (no separate CSV needed)
+    host_agg = properties_df.groupby('seller_id').agg({
+        'property_id': 'count',
+        'review_total': 'sum',
+        'review_positive': 'sum',
+        'review_negative': 'sum',
+        'review_sentiment': 'mean',
+        'is_supperhost': 'first',
+        'host_rating': 'first',
+        'host_response_rate': 'first',
+        'price': 'mean',
+        'prediction': 'mean',
+        'amenities_count': 'mean',
+        'walk_score': 'mean',
+        'lat': 'mean',
+        'long': 'mean',
+        'property_type': lambda x: x.mode().iloc[0] if len(x.mode()) > 0 else x.iloc[0],
+        'review_advantages': lambda x: '; '.join([str(a) for a in x.dropna().unique()[:5]]),
+        'review_disadvantages': lambda x: '; '.join([str(d) for d in x.dropna().unique()[:5]]),
+        'review_suggestions': lambda x: '; '.join([str(s) for s in x.dropna().unique()[:3]])
+    }).reset_index()
+    
+    host_agg.columns = [
+        'Host_ID', 'Property_Count', 'Total_Reviews', 'Positive_Reviews', 'Negative_Reviews',
+        'Avg_Sentiment_Score', 'Is_Superhost', 'Host_Rating', 'Response_Rate',
+        'Avg_Price', 'Avg_Predicted_Price', 'Avg_Amenities', 'Avg_Walk_Score',
+        'Avg_Lat', 'Avg_Long', 'Property_Types', 'Advantages', 'Disadvantages', 'Suggestions'
+    ]
+    
+    # Calculate price delta and quality score for hosts
+    host_agg['Price_Delta'] = host_agg['Avg_Predicted_Price'] - host_agg['Avg_Price']
+    host_agg['Host_Quality_Score'] = host_agg['Avg_Sentiment_Score'].fillna(0.5)
+    
+    # Merge property data with host aggregations
     merged = properties_df.merge(
-        host_report,
+        host_agg,
         left_on='seller_id',
         right_on='Host_ID',
         how='inner',
@@ -230,11 +259,8 @@ def load_data():
         ' in ' + merged['city']
     )
     
-    # All data is REAL - from property_review_intelligence_report-2.csv
-    # Sentiment Score
+    # Property-level metrics from review data
     merged['Property_Sentiment'] = merged['review_sentiment']
-    
-    # Review counts
     merged['Property_Reviews'] = merged['review_total'].fillna(0).astype(int)
     merged['Property_Positive'] = merged['review_positive'].fillna(0).astype(int)
     merged['Property_Negative'] = merged['review_negative'].fillna(0).astype(int)
@@ -251,20 +277,20 @@ def load_data():
     merged['Property_Disadvantages'] = merged['review_disadvantages']
     merged['Property_Suggestions'] = merged['review_suggestions']
     
-    return properties_df, host_report, merged
+    return properties_df, host_agg, merged
 
 @st.cache_data(ttl=3600)
-def get_hosts_data(_host_report):
-    """Use pre-calculated host data from intelligence report"""
-    hosts = _host_report[['Host_ID', 'Property_Count', 'Host_Rating', 'Total_Reviews', 
-                          'Avg_Sentiment_Score', 'Avg_Price', 'Avg_Predicted_Price', 'Is_Superhost']].copy()
+def get_hosts_data(_host_agg):
+    """Get host data from dynamically calculated aggregations"""
+    hosts = _host_agg[['Host_ID', 'Property_Count', 'Host_Rating', 'Total_Reviews', 
+                       'Avg_Sentiment_Score', 'Avg_Price', 'Avg_Predicted_Price', 'Is_Superhost']].copy()
     hosts.columns = ['Host_ID', 'Property_Count', 'Host_Rating', 'Total_Reviews', 
                      'Avg_Sentiment', 'Avg_Price', 'Avg_Predicted', 'Is_Superhost']
     return hosts.sort_values('Property_Count', ascending=False)
 
 # Load all data once
-properties_df, host_report, merged_df = load_data()
-hosts_with_data = get_hosts_data(host_report)
+properties_df, host_agg, merged_df = load_data()
+hosts_with_data = get_hosts_data(host_agg)
 
 # ============== SIDEBAR ==============
 with st.sidebar:
